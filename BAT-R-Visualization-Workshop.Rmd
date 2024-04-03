@@ -1,0 +1,425 @@
+Tufts BAT - R data visualization workshop
+By Kyle Krell
+
+```{r}
+
+#install required libaries
+install.packages("dplyr")
+install.packages("ggplot2")
+install.packages("ggthemes")
+install.packages("ggimage")
+install.packages("tidyr")
+install.packages("baseballr")
+```
+
+```{r}
+
+#load libraries
+library(dplyr)
+library(ggplot2)
+library(ggthemes)
+library(ggimage)
+library(tidyr)
+library(baseballr)
+```
+
+```{r}
+#Viewing certain functions in the BaseballR package. There are so many to choose from!
+baseballr::fg_park(2023)
+baseballr::sptrc_league_payrolls(2024)
+baseballr::mlb_draft(2023)
+```
+
+```{r}
+#view the names of the columns in our data 
+#colnames(baseballr::fg_batter_leaders())
+
+#save data to a variable called 'data' so we can call it in the future
+#This data contains all individual batter seasons from 2023
+data <- baseballr::fg_batter_leaders()
+```
+
+DATA MANIPULATON
+```{r}
+#get batters with over 150 plate appearances
+filter(data, PA > 150)
+```
+Notice the size of our data has decreased to 404, meaning we only have 404 people 
+with over 150 PA.
+
+Now, we will do the same thing using the pipe operator.
+```{r}
+data |> filter(PA > 150)
+```
+We get the same result, and using the pipe operator, we can make our code more 
+readable.
+
+```{r}
+#save filtered dataset to new variable
+filtered_data <- data |> filter(PA > 150)
+```
+
+```{r}
+#generate scatter plot where x is barrel percentage and y is hard hit pct
+#the '+ geom_point' means that we get a scatterplot
+#aes means aesthetic here, and it allows us to define our x and y axes
+
+filtered_data |> ggplot(aes(x = Barrel_pct, y = HardHit_pct)) + geom_point()
+
+#can also break this up into multiple lines
+filtered_data |>
+  ggplot(aes(x = Barrel_pct, y = HardHit_pct)) + 
+  geom_point()
+```
+```{r}
+filtered_data |>
+  ggplot(aes(x = Barrel_pct, y = HardHit_pct)) + 
+  geom_point(color = 'magenta') #can change point color with color argument
+
+filtered_data |>
+  ggplot(aes(x = Barrel_pct, y = HardHit_pct)) + 
+  geom_point(color = 'magenta') + #can change point color with color argument 
+  geom_smooth(method = 'lm', color = 'black', se = FALSE) #this function adds a trendline, se = FALSE deletes error bar
+
+
+#flipping the order makes the points appear in front of the trendline
+filtered_data |>
+  ggplot(aes(x = Barrel_pct, y = HardHit_pct)) + 
+  geom_smooth(method = 'lm', color = 'black', se = FALSE) + 
+  geom_point(color = 'magenta')  
+
+#using the theme function
+filtered_data |>
+  ggplot(aes(x = Barrel_pct, y = HardHit_pct)) + 
+  geom_point(color = 'magenta') +
+  geom_smooth(method = 'lm', color = 'black', se = FALSE) +
+  theme_clean() #this theme function gives your plot a theme, can help coloring, font etc 
+  
+```
+Now, let's add labels to our graph.
+```{r}
+filtered_data |>
+  ggplot(aes(x = Barrel_pct, y = HardHit_pct)) + 
+  geom_point(color = 'magenta') +
+  geom_smooth(method = 'lm', color = 'black', se = FALSE) +
+  #add axis labels and title
+  xlab('Barrel Percent') +
+  ylab('Hard Hit Percent') +
+  labs(title = 'Barrel vs. Hard Hit PCT' ) +
+  theme_clean() 
+
+#center the title, but we have to do it after the theme as our centering has to override the theme's title
+filtered_data |>
+  ggplot(aes(x = Barrel_pct, y = HardHit_pct)) + 
+  geom_point(color = 'red3') +
+  geom_smooth(method = 'lm', color = 'black', se = FALSE) +
+  #add axis labels and title
+  xlab('Barrel Percent') + ylab('Hard Hit Percent') +
+  labs(title = 'Barrel % vs. Hard Hit %') +
+  theme_clean() +
+  theme(plot.title = element_text(size = 20, hjust = 0.5),
+        axis.title = element_text(size = 14, face = 'bold')) +
+  ylim(0, NA)
+
+
+#save plot
+ggsave('barrel_vs_hardhit.png', height = 10, width = 14, dpi = 'retina')
+```
+Now, let's create a faceplot!
+```{r}
+#load pitching data
+pitchdat <- baseballr::fg_pitch_leaders()
+
+pitchdat <- pitchdat |>
+  filter(TBF > 60)
+
+```
+
+```{r}
+#create basic scatterplot
+pitchdat |>
+  ggplot(aes(x = Swing_pct, y = Contact_pct)) + 
+  geom_point(color = 'blue') +
+  geom_smooth(method = 'lm', color = 'red', se = FALSE) +
+  #add axis labels and title
+  xlab('Swing percentage') +
+  ylab('Contact percentage') +
+  labs(title = 'Swing% vs. Contact%' ) +
+  theme_clean() 
+```
+# Manipulating data for face plot
+```{r}
+# URL formula for player faces
+# https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_426,q_auto:best/v1/people/554430/headshot/67/current
+# The formula is "https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_426,q_auto:best/v1/people/" + [the player's MLB ID] + "/headshot/67/current"
+
+pitchdat$xMLBAMID
+
+#create URL column that will allow us to pull player faces
+
+paste0('https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_426,q_auto:best/v1/people/',
+       pitchdat$xMLBAMID,
+       '/headshot/67/current')
+
+pitchdat <- pitchdat |> 
+  mutate(URLs = 
+           paste0('https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_426,q_auto:best/v1/people/',
+                  pitchdat$xMLBAMID,
+                  '/headshot/67/current'))
+
+#pitchdat$URLs
+```
+
+# Making the face plot
+```{r}
+# Scatter plot from before
+pitchdat |> 
+  ggplot(aes(x = pfx_Swing_pct, y = pfx_Contact_pct)) + 
+  geom_point(color = 'red3') +
+  geom_smooth(method = 'lm', color = 'black', se = FALSE) + 
+  xlab('Swing Percent') + ylab('Contact Percent') +
+  labs(title = 'Swing % vs. Contact %') +
+  theme_clean() +
+  theme(plot.title = element_text(size = 20, hjust = 0.5),
+        axis.title = element_text(size = 14, face = 'bold'))
+
+# Changing geom_point to geom_image
+pitchdat |> 
+  ggplot(aes(x = pfx_Swing_pct, y = pfx_Contact_pct)) + 
+  geom_image(image = pitchdat$URLs, asp = 16/9, size = 0.03) +
+  xlab('Swing Percent') + ylab('Contact Percent') +
+  labs(title = 'Swing % vs. Contact %') +
+  theme_clean() +
+  theme(plot.title = element_text(size = 20, hjust = 0.5),
+        axis.title = element_text(size = 14, face = 'bold'))
+```
+
+# Small aesthetic changes to face plot
+```{r}
+# Adding median dashed lines
+pitchdat |> 
+  ggplot(aes(x = pfx_Swing_pct, y = pfx_Contact_pct)) + 
+  geom_hline(yintercept = median(pitchdat$pfx_Contact_pct), linetype = 'dashed') +
+  geom_vline(xintercept = median(pitchdat$pfx_Swing_pct), linetype = 'dashed') +
+  geom_image(image = pitchdat$URLs, asp = 16/9, size = 0.03) +
+  xlab('Swing Percent') + ylab('Contact Percent') +
+  labs(title = 'Swing % vs. Contact %') +
+  theme_clean() +
+  theme(plot.title = element_text(size = 20, hjust = 0.5),
+        axis.title = element_text(size = 14, face = 'bold'))
+
+# Scaling axes
+pitchdat |> 
+  ggplot(aes(x = pfx_Swing_pct * 100, y = pfx_Contact_pct * 100)) + 
+  geom_hline(yintercept = median(pitchdat$pfx_Contact_pct) * 100, linetype = 'dashed') +
+  geom_vline(xintercept = median(pitchdat$pfx_Swing_pct) * 100, linetype = 'dashed') +
+  geom_image(image = pitchdat$URLs, asp = 16/9, size = 0.03) +
+  xlab('Swing Percent') + ylab('Contact Percent') +
+  labs(title = 'Swing % vs. Contact %') +
+  theme_clean() +
+  theme(plot.title = element_text(size = 20, hjust = 0.5),
+        axis.title = element_text(size = 14, face = 'bold'))
+
+# Flipping y-axis
+pitchdat |> 
+  ggplot(aes(x = pfx_Swing_pct * 100, y = pfx_Contact_pct * 100)) + 
+  geom_hline(yintercept = median(pitchdat$pfx_Contact_pct) * 100, linetype = 'dashed') +
+  geom_vline(xintercept = median(pitchdat$pfx_Swing_pct) * 100, linetype = 'dashed') +
+  geom_image(image = pitchdat$URLs, asp = 16/9, size = 0.03) +
+  xlab('Swing Percent') + ylab('Contact Percent') +
+  labs(title = 'Swing % vs. Contact %') +
+  theme_clean() +
+  theme(plot.title = element_text(size = 20, hjust = 0.5),
+        axis.title = element_text(size = 14, face = 'bold')) + 
+  scale_y_reverse()
+
+# Saving image
+ggsave('swing_vs_contact.png', dpi = 'retina', height = 10, width = 14)
+```
+
+# Summarizing code
+```{r}
+pitchdat <- fg_pitch_leaders()
+
+pitchdat <- pitchdat |> 
+  filter(TBF > 300)
+
+pitchdat <- pitchdat |> 
+  mutate(URLs = 
+           paste0('https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_426,q_auto:best/v1/people/',
+                  pitchdat$xMLBAMID,
+                  '/headshot/67/current'))
+
+pitchdat |> 
+  ggplot(aes(x = pfx_Swing_pct * 100, y = pfx_Contact_pct * 100)) + 
+  geom_hline(yintercept = median(pitchdat$pfx_Contact_pct) * 100, linetype = 'dashed') +
+  geom_vline(xintercept = median(pitchdat$pfx_Swing_pct) * 100, linetype = 'dashed') +
+  geom_image(image = pitchdat$URLs, asp = 16/9, size = 0.03) +
+  xlab('Swing Percent') + ylab('Contact Percent') +
+  labs(title = 'Swing % vs. Contact %') +
+  theme_clean() +
+  theme(plot.title = element_text(size = 20, hjust = 0.5),
+        axis.title = element_text(size = 14, face = 'bold')) + 
+  scale_y_reverse()
+
+ggsave('swing_vs_contact2.png', dpi = 'retina', height = 10, width = 14)
+```
+
+
+
+
+
+
+# How to get season play-by-play data
+```{r}
+game_pks <- mlb_schedule(2023, level_ids = 1) |>
+  filter(game_type %in% c('D', 'F', 'L', 'R', 'W')) |>
+  mutate(game_pks = as.list(game_pk)) |>
+  pull(game_pks)
+
+season_pbp <- list()
+count = 0
+for (game_pk in game_pks) {
+  result <- tryCatch({
+    game_pbp <- mlb_pbp(game_pk = game_pk)
+    game_pbp},
+    
+    error = function(err) {
+      message(paste('Error occurred for game_pk', game_pk))
+      NULL})
+  
+  if (!is.null(result)) {
+    season_pbp[[length(season_pbp) + 1]] <- result}
+  
+  count = count + 1
+  message(paste('Games complete:', count))}
+
+fill_tibble <- function(df, cols) {
+  missing_cols <- setdiff(cols, colnames(df))
+  df[, missing_cols] <- NA
+  return(df)}
+
+all_cols <- season_pbp |>
+  map(names) |>
+  reduce(union)
+
+pbp_filled <- season_pbp |>
+  map(~ fill_tibble(.x, all_cols))
+
+season_pbp <- bind_rows(pbp_filled)
+```
+
+# Loading in resulting season play-by-play
+```{r}
+season_pbp <- read.csv('/Users/kylekrell/Desktop/Learning_to_Code/mlb_pbp.csv')
+```
+
+# Merging with another dataset
+```{r}
+season_pbp <- left_join(season_pbp, 
+          mlb_schedule(2023, level_ids = 1) |> filter(game_type %in% c('D', 'F', 'L', 'R', 'W')) |> select(-game_date),
+          by = 'game_pk')
+```
+
+# Various data manipulation
+```{r}
+stadium_ks <- season_pbp |> 
+  group_by(venue_name, game_pk, atBatIndex) |> 
+  summarise(K = ifelse(result.eventType == 'strikeout', T, F)) |> 
+  slice(1) |>
+  group_by(venue_name) |> 
+  summarise(K = sum(ifelse(K == T, 1, 0))) |> 
+  filter(!venue_name %in% c('Estadio Alfredo Harp Helu', 'London Stadium', 'Muncy Bank Ballpark'))
+
+stadium_ks$team <- c('Brewers', 'Angels', 'Cardinals', 'Diamondbacks', 'Mets', 'Phillies', 'Tigers', 'Rockies', 'Dodgers', 'Red Sox',
+                     'Rangers', 'Reds', 'White Sox', 'Royals', 'Astros', 'Nationals', 'Athletics', 'Giants', 'Orioles', 'Pirates', 
+                     'Padres', 'Guardians', 'Blue Jays', 'Mariners', 'Twins', 'Rays', 'Braves', 'Cubs', 'Yankees', 'Marlins')
+  
+stadium_ks <- stadium_ks |> 
+  left_join(fg_park(2023), by = c('team' = 'home_team'))
+  
+stadium_ks <- mlb_teams(season = 2023) |> 
+  filter(sport_name == 'Major League Baseball') |> 
+  select(team_full_name, team_name, team_abbreviation) |> 
+  mutate(team_name = ifelse(team_name == 'D-backs', 'Diamondbacks', team_name)) |> 
+  mutate(team_abbreviation = case_when(
+    team_abbreviation == 'AZ' ~ 'ARI',
+    team_abbreviation == 'KC' ~ 'KCR',
+    team_abbreviation == 'SD' ~ 'SDP',
+    team_abbreviation == 'SF' ~ 'SFG',
+    team_abbreviation == 'TB' ~ 'TBR',
+    team_abbreviation == 'WSH' ~ 'WSN',
+    team_abbreviation == 'CWS' ~ 'CHW',
+    TRUE ~ team_abbreviation),
+    URLs = paste0('https://cdn.ssref.net/req/202312151/tlogo/br/',
+                  team_abbreviation, '-2023.png')) |>
+  right_join(stadium_ks, by = c('team_name' = 'team'))
+```
+
+# Making the plot
+```{r}
+stadium_ks |> 
+  ggplot(aes(x = K, y = jitter(so)))+
+  theme_bw()+
+  geom_hline(yintercept = mean(stadium_ks$so), lty = 'dashed')+
+  geom_vline(xintercept = mean(stadium_ks$K), lty = 'dashed')+
+  geom_image(image = stadium_ks$URLs, asp = 16/9, size = .025)+
+  labs(title = 'Stadium Strikeouts and SO Park Factor')+
+  theme(axis.title = element_text(size=14))+
+  xlab('Stadium Strikeouts')+
+  ylab('SO Park Factor')+
+  theme(panel.grid.minor = element_blank())+
+  theme(axis.text = element_text(size = 10),
+        plot.title = element_text(size = 16, hjust = 0.5, face = 'bold'))+
+  scale_y_continuous(breaks = scales::pretty_breaks(n=8))+
+  scale_x_continuous(breaks = scales::pretty_breaks(n=8))
+```
+
+# More manipulation
+```{r}
+away_ks <- season_pbp |> 
+  group_by(away_team, game_pk, atBatIndex) |> 
+  summarise(TeamKs = ifelse(result.eventType == 'strikeout', T, F)) |> 
+  slice(1) |> 
+  group_by(away_team) |> 
+  summarise(TeamKs = sum(ifelse(TeamKs == T, 1, 0)))
+
+away_ks <- baseballr::mlb_teams(season = 2023) |> 
+  filter(sport_name == 'Major League Baseball') |> 
+  select(team_full_name, team_name, team_abbreviation) |> 
+  mutate(team_name = ifelse(team_name == 'D-backs', 'Diamondbacks', team_name)) |> 
+  mutate(team_abbreviation = case_when(
+    team_abbreviation == 'AZ' ~ 'ARI',
+    team_abbreviation == 'KC' ~ 'KCR',
+    team_abbreviation == 'SD' ~ 'SDP',
+    team_abbreviation == 'SF' ~ 'SFG',
+    team_abbreviation == 'TB' ~ 'TBR',
+    team_abbreviation == 'WSH' ~ 'WSN',
+    team_abbreviation == 'CWS' ~ 'CHW',
+    TRUE ~ team_abbreviation),
+    URLs = paste0('https://cdn.ssref.net/req/202312151/tlogo/br/',
+                  team_abbreviation, '-2023.png')) |>
+  right_join(away_ks, by = c('team_full_name' = 'away_team'))
+
+away_ks <- away_ks |> 
+  left_join(fg_park(2023), by = c('team_name' = 'home_team'))
+```
+
+# More plots
+```{r}
+away_ks |> 
+  ggplot(aes(x = TeamKs, y = jitter(so)))+
+  theme_bw()+
+  geom_hline(yintercept = mean(away_ks$so), lty = 'dashed')+
+  geom_vline(xintercept = mean(away_ks$TeamKs), lty = 'dashed')+
+  geom_image(image = stadium_ks$URLs, asp = 16/9, size = .025)+
+  labs(title = 'Team Away Strikeouts and SO Park Factor')+
+  theme(axis.title = element_text(size=14))+
+  xlab('Team Away Strikeouts (Pitching and Hitting)')+
+  ylab('SO Park Factor')+
+  theme(panel.grid.minor = element_blank())+
+  theme(axis.text = element_text(size = 10),
+        plot.title = element_text(size = 16, hjust = 0.5, face = 'bold'))+
+  scale_y_continuous(breaks = scales::pretty_breaks(n=8))+
+  scale_x_continuous(breaks = scales::pretty_breaks(n=8))
+```
