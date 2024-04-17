@@ -1,0 +1,127 @@
+```{r}
+install.packages("dplyr")
+install.packages("ggplot2")
+install.packages("ggthemes")
+install.packages("ggimage")
+install.packages("tidyr")
+install.packages("hoopR")
+install.packages("purrr")
+install.packages("glmnet")
+install.packages("randomForest")
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(ggthemes)
+library(ggimage)
+library(tidyr)
+library(hoopR)
+library(purrr)
+library(glmnet)
+library(randomForest)
+```
+
+```{r}
+player_stats2023 <- nba_leaguedashplayerstats(season = year_to_season(2023))$LeagueDashPlayerStats
+```
+
+
+```{r}
+filtered_player_stats2023 <- player_stats2023 |>
+  select('PLAYER_ID', 'PLAYER_NAME', 'W', 'GP', 'W_PCT', 'MIN', 'OREB', 'DREB', 'AST', 'TOV', 'STL', 'BLK', 'PF', 'PTS') |>
+  mutate(across(-c(1, 2), as.numeric)) |>
+  filter(GP > 20, MIN > 200) 
+```
+
+```{r}
+filtered_player_stats2023 <- filtered_player_stats2023 |>
+  mutate(across(c(OREB, DREB, AST, TOV, STL, BLK, PF, PTS), 
+                ~ ./MIN, .names = "{.col}PM")) |>
+  select(-c(W, GP, MIN, OREB, DREB, AST, TOV, STL, BLK, PF, PTS))
+```
+
+```{r}
+formula <- W_PCT ~ . - PLAYER_ID - PLAYER_NAME
+
+model <- lm(formula, data = filtered_player_stats2023)
+summary(model)
+```
+```{r}
+filtered_player_stats2023$xWpct_Linear <- predict(model, newdata = filtered_player_stats2023)
+```
+
+```{r}
+normalized_player_stats2023 <- filtered_player_stats2023 |>
+  mutate(across(.cols = -c(PLAYER_ID, PLAYER_NAME, W_PCT), .fns = scale))
+```
+
+```{r}
+cor_matrix <- cor(normalized_player_stats2023[,-c(1, 2)], use = "complete.obs")
+```
+
+```{r}
+x <- as.matrix(normalized_player_stats2023[, !(names(normalized_player_stats2023) %in% c("W_PCT", "PLAYER_ID", "PLAYER_NAME"))])
+y <- normalized_player_stats2023$W_PCT
+```
+
+
+```{r}
+# Cross-validation to choose lambda
+cv_ridge <- cv.glmnet(x, y, alpha = 0)
+plot(cv_ridge)
+```
+
+
+```{r}
+# Best lambda according to cross-validation
+best_lambda <- cv_ridge$lambda.min
+print(paste("Best lambda:", best_lambda))
+```
+
+
+```{r}
+# Refit model using the best lambda
+ridge_model <- glmnet(x, y, alpha = 0, lambda = best_lambda)
+print(coef(ridge_model))
+```
+```{r}
+# Note: We are predicting 'xWins' using the ridge regression model
+normalized_player_stats2023$xWpct_Ridge <- predict(ridge_model, newx = x, s = best_lambda, type = "response")
+```
+
+```{r}
+normalized_player_stats2023 <- normalized_player_stats2023 |>
+  select('PLAYER_ID', 'xWpct_Ridge')
+
+filtered_player_stats2023 <- merge(filtered_player_stats2023, normalized_player_stats2023, by = "PLAYER_ID")
+```
+
+```{r}
+player_stats2022 <- nba_leaguedashplayerstats(season = year_to_season(2022))$LeagueDashPlayerStats
+
+filtered_player_stats2022 <- player_stats2022 |>
+  select('PLAYER_ID', 'PLAYER_NAME', 'W', 'GP', 'W_PCT', 'MIN', 'OREB', 'DREB', 'AST', 'TOV', 'STL', 'BLK', 'PF', 'PTS') |>
+  mutate(across(-c(1, 2), as.numeric)) |>
+  filter(GP > 20, MIN > 200) |>
+  mutate(across(c(OREB, DREB, AST, TOV, STL, BLK, PF, PTS), 
+                ~ ./MIN, .names = "{.col}PM")) |>
+  select(-c(W, GP, MIN, OREB, DREB, AST, TOV, STL, BLK, PF, PTS))
+```
+
+```{r}
+rf_model <- randomForest(W_PCT ~ . - PLAYER_ID - PLAYER_NAME, data = filtered_player_stats2022, 
+                         ntree = 100, 
+                         mtry = floor((ncol(filtered_player_stats2022) - 2) / 3), 
+                         importance = TRUE)
+
+print(rf_model)
+```
+
+```{r}
+varImpPlot(rf_model)
+```
+```{r}
+filtered_player_stats2023$xWinsRF <- predict(rf_model, newdata = filtered_player_stats2023 %>% select(- 'xWpct_Linear', 'xWpct_Ridge' ))
+```
+
