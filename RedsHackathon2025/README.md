@@ -1,1 +1,1 @@
-
+This folder contains the notebook submission that Tufts University - Team 2 sent to the Reds for their 2025 hackathon. The notebook was authored by Richard Diamond, Ronan Hwang, Ben Goldberg, Wes Rivers and Jackson Ehrlich. The prompt asked team to build a model to estimate plate appearances and batters faced in any given MLB season.
